@@ -21,9 +21,15 @@ nb-media-linkedin-agent/
 ├── outputs/                 # Generated posts saved here (gitignored)
 ├── docs/
 │   └── architecture.md      # System design overview
+├── static/
+│   └── index.html           # Web UI served at /
 ├── main.py                  # CLI entry point
+├── api.py                   # FastAPI backend — REST API + serves static UI
+├── n8n_workflow_python_backend.json  # n8n workflow (import directly into n8n)
+├── Procfile                 # Deployment process config (Railway / Heroku)
+├── runtime.txt              # Python version pinned for deployment
 ├── requirements.txt
-├── .env.example
+├── .env                     # API keys (not committed — see Environment Variables)
 └── .gitignore
 ```
 
@@ -52,14 +58,21 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # 4. Configure API keys
-copy .env.example .env          # Windows
-# cp .env.example .env          # macOS / Linux
-# Then edit .env and fill in your keys
+# Create a .env file in the project root and add your keys:
+# OPENROUTER_API_KEY=your_key_here
+# TAVILY_API_KEY=your_key_here
+
+# 5. Start the API server
+uvicorn api:app --port 8000 --reload
 ```
+
+The web UI will be available at `http://localhost:8000`.
 
 ---
 
 ## Usage
+
+### CLI
 
 ```bash
 python main.py
@@ -73,6 +86,31 @@ You will be prompted to choose a mode:
 | **2 — Auto Research** | Tavily searches for trending topics; GPT picks the best one; post is generated |
 
 At the end you can save the result as a JSON file in `outputs/`.
+
+### REST API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/generate-post` | Generate a post (manual or research mode) |
+| `GET` | `/posts` | List last 20 generated posts |
+| `GET` | `/health` | Health check |
+
+**Example request:**
+```json
+POST /generate-post
+{
+  "topic": "AI agents replacing manual workflows",
+  "post_type": "tool_breakdown",
+  "mode": "manual"
+}
+```
+
+### n8n Workflow
+
+Import `n8n_workflow_python_backend.json` directly into n8n.
+The workflow includes two triggers:
+- **Webhook** — generates a post on demand (user-provided topic)
+- **7 AM scheduler** — auto-research mode, picks a trending topic and generates a post
 
 ---
 
@@ -100,7 +138,7 @@ pytest tests/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENRouter_API_KEY` | Yes | OpenRouter API key |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key (access to GPT-4o) |
 | `TAVILY_API_KEY` | Only for Auto Research mode | Tavily search API key |
 
 ---
