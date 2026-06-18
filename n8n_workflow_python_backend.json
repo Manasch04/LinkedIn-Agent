@@ -1,0 +1,170 @@
+{
+  "name": "NB Media - LinkedIn Agent (Python Backend)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-post",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-manual",
+      "name": "Webhook - Manual Post",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 200],
+      "notes": "POST body: { topic, post_type }"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/generate-post",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ topic: $('Webhook - Manual Post').item.json.body.topic, post_type: $('Webhook - Manual Post').item.json.body.post_type || 'auto', mode: 'manual' }) }}",
+        "options": {}
+      },
+      "id": "http-manual",
+      "name": "Python API - Manual Generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule - 7AM Weekdays",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 450]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/generate-post",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"mode\": \"research\", \"niche\": \"AI automation for businesses\" }",
+        "options": {}
+      },
+      "id": "http-research",
+      "name": "Python API - Auto Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 450]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.posts) staticData.posts = [];\n\nconst p = $input.item.json;\nconst entry = {\n  id: 'post_' + Date.now(),\n  post: p.post,\n  image_concept: p.image_concept,\n  topic: p.topic,\n  post_type: p.post_type,\n  source: p.source || 'manual',\n  status: 'draft',\n  generated_at: p.generated_at,\n  char_count: p.post.length,\n  word_count: p.post.split(' ').length\n};\n\nstaticData.posts.push(entry);\nif (staticData.posts.length > 100) {\n  staticData.posts = staticData.posts.slice(-100);\n}\n\nreturn { ...entry, total_saved: staticData.posts.length };"
+      },
+      "id": "save-manual",
+      "name": "Save Post (Manual)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.posts) staticData.posts = [];\n\nconst p = $input.item.json;\nconst entry = {\n  id: 'post_' + Date.now(),\n  post: p.post,\n  image_concept: p.image_concept,\n  topic: p.topic,\n  post_type: p.post_type,\n  source: 'auto_research',\n  status: 'draft',\n  generated_at: p.generated_at,\n  char_count: p.post.length,\n  word_count: p.post.split(' ').length\n};\n\nstaticData.posts.push(entry);\nif (staticData.posts.length > 100) {\n  staticData.posts = staticData.posts.slice(-100);\n}\n\nreturn { ...entry, total_saved: staticData.posts.length };"
+      },
+      "id": "save-research",
+      "name": "Save Post (Research)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 450]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, id: $json.id, post: $json.post, image_concept: $json.image_concept, generated_at: $json.generated_at, char_count: $json.char_count, total_saved: $json.total_saved }) }}"
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1020, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "list-posts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "list-webhook",
+      "name": "Webhook - List Posts",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst posts = staticData.posts || [];\nreturn { total: posts.length, posts: posts.slice(-20).reverse() };"
+      },
+      "id": "read-local",
+      "name": "Read Saved Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "respond-list",
+      "name": "Respond with List",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 700]
+    }
+  ],
+  "connections": {
+    "Webhook - Manual Post": {
+      "main": [[{ "node": "Python API - Manual Generate", "type": "main", "index": 0 }]]
+    },
+    "Python API - Manual Generate": {
+      "main": [[{ "node": "Save Post (Manual)", "type": "main", "index": 0 }]]
+    },
+    "Save Post (Manual)": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    },
+    "Schedule - 7AM Weekdays": {
+      "main": [[{ "node": "Python API - Auto Research", "type": "main", "index": 0 }]]
+    },
+    "Python API - Auto Research": {
+      "main": [[{ "node": "Save Post (Research)", "type": "main", "index": 0 }]]
+    },
+    "Webhook - List Posts": {
+      "main": [[{ "node": "Read Saved Posts", "type": "main", "index": 0 }]]
+    },
+    "Read Saved Posts": {
+      "main": [[{ "node": "Respond with List", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": ["NB Media", "LinkedIn", "Python Backend"],
+  "meta": { "instanceId": "nb-media-linkedin-agent-v3" }
+}
