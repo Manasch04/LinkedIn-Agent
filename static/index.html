@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NB Media — LinkedIn Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #111;
+      --panel:   #181818;
+      --border:  #2c2c2c;
+      --inp:     #242424;
+      --text:    #ececec;
+      --sub:     #888;
+      --dim:     #444;
+      --blue:    #0a84ff;
+      --bluedim: #071e3d;
+      --green:   #30d158;
+      --grndim:  #0a2e18;
+      --active:  #0a2340;
+    }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+    body { display: flex; flex-direction: column; }
+
+    /* ── Topbar ── */
+    .topbar {
+      height: 52px; flex-shrink: 0;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 13px; padding: 0 20px;
+    }
+    .logo { width: 32px; height: 32px; background: var(--blue); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px; color: #fff; flex-shrink: 0; }
+    .topbar-name { font-size: 15px; font-weight: 700; color: #fff; }
+    .topbar-sub  { font-size: 11px; color: var(--sub); }
+    .live-pill {
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      background: var(--inp); border: 1px solid var(--border);
+      border-radius: 20px; padding: 5px 12px; font-size: 11px; color: var(--sub);
+    }
+    .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); transition: background .4s, box-shadow .4s; }
+    .pip.on { background: var(--green); box-shadow: 0 0 7px var(--green); }
+
+    /* ── Layout ── */
+    .app { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left Panel ── */
+    .left-panel {
+      width: 300px; flex-shrink: 0;
+      background: var(--panel); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .left-tabs {
+      display: flex; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ltab {
+      flex: 1; padding: 13px 8px; text-align: center;
+      font-size: 12px; font-weight: 700; color: var(--dim);
+      cursor: pointer; border-bottom: 2px solid transparent;
+      transition: color .15s, background .15s; user-select: none;
+    }
+    .ltab:hover:not(.on) { color: var(--sub); }
+    .ltab.on { color: var(--blue); border-bottom-color: var(--blue); }
+    .ltab .cnt {
+      display: inline-block; background: var(--bluedim); color: #6bb8ff;
+      font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 10px;
+      margin-left: 4px; vertical-align: middle;
+    }
+
+    /* ── Create Section ── */
+    .create-section { flex: 1; overflow-y: auto; }
+    .gp-inner { padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    .sec-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+
+    .mode-tabs { display: flex; gap: 5px; }
+    .mtab {
+      flex: 1; padding: 8px 4px; text-align: center;
+      background: var(--inp); border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 11px; font-weight: 700; color: var(--sub);
+      cursor: pointer; transition: all .15s; user-select: none;
+    }
+    .mtab.on { background: var(--bluedim); border-color: var(--blue); color: #6bb8ff; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.gone { display: none; }
+    .field > label { font-size: 12px; font-weight: 600; color: var(--sub); }
+    .field .hint   { font-size: 10px; color: var(--dim); }
+
+    textarea, select, input[type=text] {
+      background: var(--inp); border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 9px 12px;
+      color: var(--text); font-size: 13px; font-family: inherit;
+      outline: none; width: 100%; transition: border-color .15s;
+    }
+    textarea:focus, select:focus, input:focus { border-color: var(--blue); }
+    textarea { resize: vertical; min-height: 85px; line-height: 1.5; }
+    select option { background: #1a1a1a; }
+
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    .btn-gen {
+      width: 100%; padding: 13px; border: none; border-radius: 10px;
+      background: var(--blue); color: #fff;
+      font-size: 14px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      transition: background .2s, transform .1s, opacity .2s;
+    }
+    .btn-gen:hover:not(:disabled) { background: #0070d8; }
+    .btn-gen:active:not(:disabled) { transform: scale(.97); }
+    .btn-gen:disabled { opacity: .4; cursor: not-allowed; }
+
+    .alert { border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.55; display: none; }
+    .alert.show { display: block; }
+    .alert.loading { background: var(--bluedim); border: 1px solid #0a3f7a; color: #6bb8ff; }
+    .alert.error   { background: #2a0808; border: 1px solid #7a1414; color: #ffa0a0; }
+
+    .option-row { display: flex; align-items: center; justify-content: space-between; }
+    .option-row label { font-size: 12px; color: var(--sub); cursor: default; }
+    .toggle {
+      width: 36px; height: 20px; background: var(--inp);
+      border: 1.5px solid var(--border); border-radius: 20px;
+      cursor: pointer; position: relative; transition: background .2s, border-color .2s; flex-shrink: 0;
+    }
+    .toggle.on { background: var(--blue); border-color: var(--blue); }
+    .toggle::after {
+      content:''; position: absolute; top: 2px; left: 2px;
+      width: 13px; height: 13px; background: var(--sub);
+      border-radius: 50%; transition: transform .2s, background .2s;
+    }
+    .toggle.on::after { transform: translateX(15px); background: #fff; }
+
+    /* ── History Section ── */
+    .history-section { flex: 1; overflow: hidden; display: none; flex-direction: column; }
+    .history-section.show { display: flex; }
+    .hist-filters {
+      padding: 12px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .hist-count-lbl { font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+    .filter-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+    .ftab {
+      padding: 4px 9px; border-radius: 20px; font-size: 10px; font-weight: 700;
+      background: var(--inp); border: 1px solid var(--border); color: var(--dim);
+      cursor: pointer; transition: all .15s; user-select: none;
+    }
+    .ftab.on { background: var(--bluedim); border-color: var(--blue); color: #6bb8ff; }
+    .hist-list { flex: 1; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+    .hist-item {
+      padding: 10px; border-radius: 9px; cursor: pointer;
+      transition: background .15s; border: 1.5px solid transparent;
+    }
+    .hist-item:hover { background: var(--inp); }
+    .hist-item.active { background: var(--active); border-color: var(--blue); }
+    .hi-top  { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+    .hi-type { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px; background: var(--inp); color: var(--dim); }
+    .hi-date { font-size: 9px; color: var(--dim); margin-left: auto; }
+    .hi-topic { font-size: 12px; font-weight: 600; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+    .hi-preview { font-size: 11px; color: var(--dim); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .hist-empty { padding: 40px 14px; text-align: center; font-size: 12px; color: var(--dim); line-height: 1.8; }
+
+    /* ── Center Viewer ── */
+    .viewer {
+      flex: 1; overflow-y: auto;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+    }
+    .viewer-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 14px; text-align: center; padding: 60px 40px;
+    }
+    .viewer-empty .ei { font-size: 56px; opacity: .15; }
+    .viewer-empty h2  { font-size: 20px; color: var(--sub); font-weight: 700; }
+    .viewer-empty p   { font-size: 14px; line-height: 1.7; color: var(--dim); }
+    .viewer-empty .hint-steps {
+      margin-top: 10px; display: flex; flex-direction: column; gap: 8px;
+      text-align: left; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px; max-width: 340px;
+    }
+    .viewer-empty .hint-steps .step { font-size: 13px; color: var(--sub); }
+    .viewer-empty .hint-steps .step b { color: #fff; }
+
+    /* post-view is a permanent div, toggled with .visible */
+    #post-view { display: none; padding: 28px 40px; flex-direction: column; }
+    #post-view.visible { display: flex; }
+
+    .pv-head {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 22px;
+    }
+    .pv-topic { flex: 1; font-size: 15px; font-weight: 700; color: #fff; line-height: 1.4; }
+    .pv-meta  { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+    .pv-date  { font-size: 10px; color: var(--dim); }
+
+    .badge { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .b-type { background: var(--bluedim); color: #6bb8ff; border: 1px solid #0a3f7a; }
+    .b-auto { background: var(--grndim); color: #6dea9a; border: 1px solid #145228; }
+
+    .pv-body { font-size: 15px; line-height: 1.9; color: #ddd; word-break: break-word; padding-bottom: 22px; }
+    .pv-body strong { color: #fff; font-weight: 700; }
+    .pv-body .hashtags { color: var(--blue); font-weight: 600; font-size: 14px; margin-top: 10px; }
+
+    .btn-copy-main {
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      padding: 15px 20px; border: none; border-radius: 12px;
+      background: var(--green); color: #000;
+      font-size: 16px; font-weight: 800; cursor: pointer;
+      transition: background .2s, transform .1s;
+      width: 100%; margin-bottom: 8px;
+    }
+    .btn-copy-main:hover  { background: #28b84e; }
+    .btn-copy-main:active { transform: scale(.98); }
+    .btn-copy-main.ok     { background: var(--grndim); color: var(--green); border: 1.5px solid #145228; }
+
+    .pv-stats { font-size: 11px; color: var(--dim); text-align: center; margin-bottom: 22px; }
+
+    .collap { border-top: 1px solid var(--border); }
+    .collap-btn {
+      width: 100%; background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; font-size: 12px; font-weight: 700; color: var(--dim);
+      text-align: left; transition: color .15s;
+    }
+    .collap-btn:hover { color: var(--sub); }
+    .collap-btn .arr { font-size: 9px; transition: transform .2s; }
+    .collap-btn.open .arr { transform: rotate(180deg); }
+    .collap-body { display: none; padding-bottom: 16px; }
+    .collap-body.open { display: block; }
+    .img-box {
+      background: var(--inp); border: 1px solid var(--border);
+      border-radius: 9px; padding: 13px 15px;
+      font-size: 13px; line-height: 1.7; color: #aaa; white-space: pre-wrap;
+    }
+    .src-list { display: flex; flex-direction: column; }
+    .src-item { padding: 6px 0; font-size: 11px; color: var(--sub); border-bottom: 1px solid var(--border); }
+    .src-item:last-child { border: none; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">NB</div>
+  <div>
+    <div class="topbar-name">LinkedIn Content Agent</div>
+    <div class="topbar-sub">NB Media Productions</div>
+  </div>
+  <div class="live-pill">
+    <div class="pip" id="pip"></div>
+    <span id="pip-lbl">connecting…</span>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ── Left Panel (Create + History tabs) ── -->
+  <div class="left-panel">
+
+    <div class="left-tabs">
+      <div class="ltab on" id="ltab-create"  onclick="setLeftTab('create')">✏️ Create</div>
+      <div class="ltab"    id="ltab-history" onclick="setLeftTab('history')">
+        📋 History <span class="cnt" id="hist-cnt">0</span>
+      </div>
+    </div>
+
+    <!-- Create -->
+    <div class="create-section" id="create-section">
+      <div class="gp-inner">
+
+        <div class="field">
+          <label>Mode</label>
+          <div class="mode-tabs">
+            <div class="mtab on" id="tab-m" onclick="setMode('manual')">✏️ Manual</div>
+            <div class="mtab"    id="tab-r" onclick="setMode('research')">🔍 Auto Research</div>
+          </div>
+        </div>
+
+        <div class="field" id="f-topic">
+          <label>What's your topic?</label>
+          <textarea id="topic" placeholder="e.g. How we saved 200 hours using AI in our team"></textarea>
+        </div>
+
+        <div class="field" id="f-type">
+          <label>Post type</label>
+          <select id="ptype">
+            <option value="auto">🤖 Auto-detect</option>
+            <option value="internal_story">📖 Company Story</option>
+            <option value="founder_spotlight">🌟 Founder Spotlight</option>
+            <option value="tool_breakdown">🛠️ Tool Breakdown</option>
+            <option value="contrarian">💡 Contrarian Take</option>
+          </select>
+        </div>
+
+        <div class="field gone" id="f-niche">
+          <label>Niche / Industry</label>
+          <input type="text" id="niche" value="AI automation for businesses">
+          <div class="hint">AI searches latest news and picks the best topic for you.</div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="sec-label">Options</div>
+
+        <div class="option-row">
+          <label>Auto-save posts</label>
+          <div class="toggle on" id="tog-save" onclick="toggleOpt('save')"></div>
+        </div>
+        <div class="option-row">
+          <label>Show image concept</label>
+          <div class="toggle on" id="tog-img" onclick="toggleOpt('img')"></div>
+        </div>
+        <div class="option-row">
+          <label>Show research sources</label>
+          <div class="toggle on" id="tog-src" onclick="toggleOpt('src')"></div>
+        </div>
+
+        <hr class="divider">
+
+        <button class="btn-gen" id="btn-gen" onclick="generate()">
+          <span id="btn-ico">✨</span>
+          <span id="btn-lbl">Generate Post</span>
+        </button>
+
+        <div class="alert" id="alert"></div>
+
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-section" id="history-section">
+      <div class="hist-filters">
+        <div class="hist-count-lbl" id="hist-count-lbl">0 posts saved</div>
+        <div class="filter-tabs" id="filter-tabs">
+          <div class="ftab on" data-f="all"               onclick="setFilter('all')">All</div>
+          <div class="ftab"    data-f="internal_story"    onclick="setFilter('internal_story')">Story</div>
+          <div class="ftab"    data-f="founder_spotlight" onclick="setFilter('founder_spotlight')">Spotlight</div>
+          <div class="ftab"    data-f="tool_breakdown"    onclick="setFilter('tool_breakdown')">Tool</div>
+          <div class="ftab"    data-f="contrarian"        onclick="setFilter('contrarian')">Contrarian</div>
+          <div class="ftab"    data-f="auto"              onclick="setFilter('auto')">Auto</div>
+        </div>
+      </div>
+      <div class="hist-list" id="hist-list">
+        <div class="hist-empty">No posts yet.<br>Generate your first post!</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Center: Viewer ── -->
+  <div class="viewer" id="viewer">
+
+    <!-- Empty state — always in DOM, just hidden when post is shown -->
+    <div class="viewer-empty" id="v-empty">
+      <div class="ei">✍️</div>
+      <h2>Ready to create</h2>
+      <p>Your generated post will appear here, ready to copy.</p>
+      <div class="hint-steps">
+        <div class="step"><b>1.</b> Type your topic on the left</div>
+        <div class="step"><b>2.</b> Choose a post type (optional)</div>
+        <div class="step"><b>3.</b> Hit <b>Generate Post</b></div>
+        <div class="step"><b>4.</b> Click <b>Copy Post</b> and paste to LinkedIn</div>
+      </div>
+    </div>
+
+    <!-- Post view — permanent div, shown when a post is active -->
+    <div id="post-view"></div>
+
+  </div>
+
+</div>
+
+<script>
+  let posts      = [];
+  let activeIdx  = -1;
+  let filterType = 'all';
+  let opts       = { save: true, img: true, src: true };
+  let mode       = 'manual';
+  let seen       = new Set();
+
+  /* ── Tab: Create vs History ── */
+  function setLeftTab(tab) {
+    const isHistory = tab === 'history';
+    document.getElementById('ltab-create').classList.toggle('on', !isHistory);
+    document.getElementById('ltab-history').classList.toggle('on', isHistory);
+    document.getElementById('create-section').style.display = isHistory ? 'none' : '';
+    document.getElementById('history-section').classList.toggle('show', isHistory);
+  }
+
+  /* ── Mode: manual vs research ── */
+  function setMode(m) {
+    mode = m;
+    document.getElementById('tab-m').classList.toggle('on', m === 'manual');
+    document.getElementById('tab-r').classList.toggle('on', m === 'research');
+    document.getElementById('f-topic').classList.toggle('gone', m !== 'manual');
+    document.getElementById('f-type').classList.toggle('gone',  m !== 'manual');
+    document.getElementById('f-niche').classList.toggle('gone', m !== 'research');
+  }
+
+  /* ── Options toggles ── */
+  function toggleOpt(key) {
+    opts[key] = !opts[key];
+    document.getElementById('tog-' + key).classList.toggle('on', opts[key]);
+    if (activeIdx >= 0) showInViewer(activeIdx);
+  }
+
+  /* ── History filter ── */
+  function setFilter(f) {
+    filterType = f;
+    document.querySelectorAll('.ftab').forEach(t =>
+      t.classList.toggle('on', t.dataset.f === f));
+    renderHistory();
+  }
+
+  /* ── Helpers ── */
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderPost(raw) {
+    if (!raw) return '';
+    return raw.split('\n').map(line => {
+      const t = line.trim();
+      if (t && t.split(/\s+/).every(w => w.startsWith('#'))) {
+        return `<div class="hashtags">${esc(t)}</div>`;
+      }
+      let l = esc(line);
+      l = l.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<div>${l || '&nbsp;'}</div>`;
+    }).join('');
+  }
+
+  function typeLabel(t) {
+    return {
+      internal_story: 'Company Story',
+      founder_spotlight: 'Founder Spotlight',
+      tool_breakdown: 'Tool Breakdown',
+      contrarian: 'Contrarian',
+      auto: 'Auto'
+    }[t] || (t || 'Auto');
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const isToday = d.toDateString() === new Date().toDateString();
+    return (isToday ? 'Today' : d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }))
+      + ', ' + d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  function shortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (d.toDateString() === new Date().toDateString()) {
+      return d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    }
+    return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+  }
+
+  function setLive(ok) {
+    document.getElementById('pip').classList.toggle('on', ok);
+    document.getElementById('pip-lbl').textContent = ok ? 'Live' : 'offline';
+  }
+
+  /* ── Copy — uses getElementById so it's safe after innerHTML swaps ── */
+  function copyPost() {
+    const p = posts[activeIdx];
+    if (!p) return;
+    const btn = document.getElementById('main-copy-btn');
+    if (!btn) return;
+    navigator.clipboard.writeText(p.post || '').then(() => {
+      btn.textContent = '✅  Copied to clipboard!';
+      btn.classList.add('ok');
+      setTimeout(() => {
+        btn.innerHTML = '📋 &nbsp; Copy Post';
+        btn.classList.remove('ok');
+      }, 2500);
+    });
+  }
+
+  /* ── Collapsibles ── */
+  function togSec(id) {
+    const b = document.getElementById('b-' + id);
+    const h = document.getElementById('h-' + id);
+    if (!b || !h) return;
+    const open = b.classList.toggle('open');
+    h.classList.toggle('open', open);
+  }
+
+  /* ── Show post in center viewer ── */
+  function showInViewer(idx) {
+    activeIdx = idx;
+    const p = posts[idx];
+
+    if (!p) {
+      document.getElementById('v-empty').style.display = '';
+      document.getElementById('post-view').style.display = 'none';
+      return;
+    }
+
+    const isAuto = !!(p.research_source || p.source === 'auto_research');
+    const hasSrc = opts.src && Array.isArray(p.raw_search_results) && p.raw_search_results.length;
+    const chars  = (p.post || '').length;
+    const words  = (p.post || '').trim().split(/\s+/).filter(Boolean).length;
+
+    const imgSec = opts.img ? `
+      <div class="collap">
+        <button class="collap-btn" id="h-img" onclick="togSec('img')">
+          🖼️ &nbsp;Image Concept <span class="arr">▼</span>
+        </button>
+        <div class="collap-body" id="b-img">
+          <div class="img-box">${esc(p.image_concept || 'Not generated')}</div>
+        </div>
+      </div>` : '';
+
+    const srcSec = hasSrc ? `
+      <div class="collap">
+        <button class="collap-btn" id="h-src" onclick="togSec('src')">
+          🔍 &nbsp;Research Sources <span class="arr">▼</span>
+        </button>
+        <div class="collap-body" id="b-src">
+          <div class="src-list">
+            ${p.raw_search_results.map(s => `<div class="src-item">${esc(s)}</div>`).join('')}
+          </div>
+        </div>
+      </div>` : '';
+
+    /* Hide empty state, show post-view */
+    document.getElementById('v-empty').style.display = 'none';
+    const pv = document.getElementById('post-view');
+    pv.style.display = 'flex';
+    pv.innerHTML = `
+      <div class="pv-head">
+        <div class="pv-topic">${esc(p.topic || 'Untitled')}</div>
+        <div class="pv-meta">
+          <span class="badge b-type">${typeLabel(p.post_type)}</span>
+          ${isAuto ? '<span class="badge b-auto">Auto Research</span>' : ''}
+          <span class="pv-date">${fmtDate(p.generated_at)}</span>
+        </div>
+      </div>
+
+      <div class="pv-body">${renderPost(p.post || '')}</div>
+
+      <button class="btn-copy-main" id="main-copy-btn" onclick="copyPost()">
+        📋 &nbsp; Copy Post
+      </button>
+      <div class="pv-stats">${chars} characters &nbsp;·&nbsp; ${words} words</div>
+
+      ${imgSec}
+      ${srcSec}`;
+
+    renderHistory(); // re-render to update active highlight
+  }
+
+  /* ── History list ── */
+  function updateHistCount() {
+    const n = posts.length;
+    document.getElementById('hist-cnt').textContent = n;
+    document.getElementById('hist-count-lbl').textContent =
+      `${n} post${n !== 1 ? 's' : ''} saved`;
+  }
+
+  function renderHistory() {
+    updateHistCount();
+    const filtered = posts.filter(p =>
+      filterType === 'all' || p.post_type === filterType
+    );
+    const list = document.getElementById('hist-list');
+
+    if (!filtered.length) {
+      list.innerHTML = '<div class="hist-empty">No posts here yet.<br>Generate your first post!</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(p => {
+      const realIdx = posts.indexOf(p);
+      const isActive = realIdx === activeIdx;
+      const preview = (p.post || '').replace(/\*\*/g, '').split('\n')[0] || '';
+      return `
+        <div class="hist-item ${isActive ? 'active' : ''}" onclick="showInViewer(${realIdx})">
+          <div class="hi-top">
+            <span class="hi-type">${typeLabel(p.post_type)}</span>
+            <span class="hi-date">${shortDate(p.generated_at)}</span>
+          </div>
+          <div class="hi-topic">${esc((p.topic || 'Untitled').slice(0, 50))}</div>
+          <div class="hi-preview">${esc(preview)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  /* ── Alert ── */
+  function setAlert(type, msg) {
+    const el = document.getElementById('alert');
+    el.className = 'alert show ' + type;
+    el.textContent = msg;
+  }
+  function clearAlert() {
+    document.getElementById('alert').className = 'alert';
+  }
+
+  /* ── Add post to state ── */
+  function addPost(p, showIt) {
+    seen.add(p.generated_at);
+    posts.unshift(p);
+    renderHistory();
+    if (showIt) showInViewer(0);
+  }
+
+  /* ── Fetch ── */
+  async function fetchPosts() {
+    const r = await fetch('/posts');
+    if (!r.ok) throw new Error();
+    return r.json();
+  }
+
+  /* ── Boot: load existing posts silently, don't auto-show any ── */
+  async function boot() {
+    try {
+      const data = await fetchPosts();
+      (data.posts || []).forEach(p => {
+        seen.add(p.generated_at);
+        posts.push(p);
+      });
+      renderHistory();
+      setLive(true);
+    } catch {
+      setLive(false);
+    }
+  }
+
+  /* ── Poll: detect new posts added externally (n8n / CLI) ── */
+  async function poll() {
+    try {
+      const data = await fetchPosts();
+      let added = false;
+      (data.posts || []).forEach(p => {
+        if (!seen.has(p.generated_at)) {
+          addPost(p, false);
+          added = true;
+        }
+      });
+      if (added) renderHistory();
+      setLive(true);
+    } catch {
+      setLive(false);
+    }
+  }
+
+  /* ── Generate ── */
+  async function generate() {
+    const btn   = document.getElementById('btn-gen');
+    const topic = document.getElementById('topic').value.trim();
+    const niche = document.getElementById('niche').value.trim() || 'AI automation for businesses';
+    const ptype = document.getElementById('ptype').value;
+
+    if (mode === 'manual' && !topic) {
+      setAlert('error', '⚠️  Please write a topic first!');
+      document.getElementById('topic').focus();
+      return;
+    }
+
+    btn.disabled = true;
+    document.getElementById('btn-ico').textContent = '⏳';
+    document.getElementById('btn-lbl').textContent = mode === 'research' ? 'Searching…' : 'Writing…';
+    setAlert('loading', mode === 'research'
+      ? '🔍 Searching latest news + writing post. Takes ~15 sec…'
+      : '✍️  Writing your LinkedIn post…');
+
+    const body = mode === 'research'
+      ? { mode: 'research', niche }
+      : { mode: 'manual', topic, post_type: ptype };
+
+    try {
+      const res = await fetch('/generate-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      const post = await res.json();
+      clearAlert();
+      if (!seen.has(post.generated_at)) {
+        addPost(post, true); // show in viewer immediately
+      } else {
+        showInViewer(posts.findIndex(p => p.generated_at === post.generated_at));
+      }
+      if (mode === 'manual') document.getElementById('topic').value = '';
+    } catch (e) {
+      setAlert('error', '❌ ' + (e.message || 'Something went wrong. Try again.'));
+    } finally {
+      btn.disabled = false;
+      document.getElementById('btn-ico').textContent = '✨';
+      document.getElementById('btn-lbl').textContent = 'Generate Post';
+    }
+  }
+
+  boot().then(() => setInterval(poll, 5000));
+</script>
+</body>
+</html>
